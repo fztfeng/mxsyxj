@@ -47,6 +47,9 @@ class App {
 
         this.startTimeUpdateTimer();
 
+        // 启动时自动获取定位
+        setTimeout(() => this.autoGetLocation(), 1000);
+
         // 启动时自动获取天气（如果是自动模式）
         if (this.watermark.config.weatherMode !== 'manual') {
             setTimeout(() => this.refreshAutoWeather(), 2000);
@@ -1191,9 +1194,164 @@ class App {
                 }
                 statusEl.textContent = msg + '，请手动输入位置';
                 statusEl.className = 'location-status error';
+                // 定位失败时尝试IP定位
+                this._fallbackIPLocation();
             },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
         );
+    }
+
+    /**
+     * 应用定位结果到水印（自动模式专用）
+     * 关键：自动设置 useCustomLocation = true 并勾选开关
+     */
+    _applyLocationResult(lat, lon, address) {
+        // 填充表单
+        document.getElementById('custom-coords').value = `${lat},${lon}`;
+        if (address) {
+            document.getElementById('custom-province').value = address.province || '';
+            document.getElementById('custom-city').value = address.city || '';
+            document.getElementById('custom-address').value = address.address || '';
+        }
+
+        // 关键修复：启用自定义位置，否则 getLocation() 返回空
+        this.watermark.updateConfig('useCustomLocation', true);
+
+        // 同步UI开关状态
+        const toggle = document.getElementById('toggle-custom-location');
+        if (toggle && !toggle.checked) {
+            toggle.checked = true;
+            document.getElementById('location-settings').classList.remove('hidden');
+        }
+
+        this.updateCustomLocation();
+
+        // 自动获取天气
+        if (this.watermark.config.weatherMode === 'auto') {
+            this._fetchWeatherAfterLocation(parseFloat(lat), parseFloat(lon));
+        }
+    }
+
+    /**
+     * 启动时自动获取定位（静默模式，不显示状态）
+     */
+    autoGetLocation() {
+        if (!navigator.geolocation) {
+            // 浏览器不支持定位，直接走IP定位
+            this._fallbackIPLocation();
+            return;
+        }
+
+        // 先尝试低精度快速定位
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const lat = position.coords.latitude.toFixed(4);
+                const lon = position.coords.longitude.toFixed(4);
+
+                this.reverseGeocode(lat, lon).then(address => {
+                    this._applyLocationResult(lat, lon, address);
+                }).catch(() => {
+                    this._applyLocationResult(lat, lon, null);
+                });
+            },
+            (err) => {
+                console.warn('自动定位失败:', err.message);
+                // 尝试高精度定位
+                this._retryHighAccuracyLocation();
+            },
+            { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 }
+        );
+    }
+
+    /**
+     * 高精度定位重试
+     */
+    _retryHighAccuracyLocation() {
+        if (!navigator.geolocation) {
+            this._fallbackIPLocation();
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const lat = position.coords.latitude.toFixed(4);
+                const lon = position.coords.longitude.toFixed(4);
+
+                this.reverseGeocode(lat, lon).then(address => {
+                    this._applyLocationResult(lat, lon, address);
+                }).catch(() => {
+                    this._applyLocationResult(lat, lon, null);
+                });
+            },
+            (err) => {
+                console.warn('高精度定位也失败:', err.message);
+                // 最终备用：IP定位
+                this._fallbackIPLocation();
+            },
+            { enableHighAccuracy: true, timeout: 12000, maximumAge: 300000 }
+        );
+    }
+
+    /**
+     * IP定位备用方案（通过免费API获取大致位置）
+     */
+    async _fallbackIPLocation() {
+        // 方案1: ipapi.co
+        try {
+            const response = await fetch('https://ipapi.co/json/', {
+                method: 'GET',
+                signal: AbortSignal.timeout(6000)
+            });
+            if (!response.ok) throw new Error('ipapi response not ok');
+            const data = await response.json();
+            if (data && data.latitude && data.longitude) {
+                const lat = data.latitude.toFixed(4);
+                const lon = data.longitude.toFixed(4);
+                const address = data.city ? {
+                    province: data.region || '',
+                    city: data.city || '',
+                    address: ''
+                } : null;
+                this._applyLocationResult(lat, lon, address);
+                console.log('IP定位成功(ipapi.co):', data.city);
+                return;
+            }
+        } catch (err) {
+            console.warn('ipapi.co定位失败:', err.message);
+        }
+
+        // 方案2: ipinfo.io
+        try {
+            const resp2 = await fetch('https://ipinfo.io/json', {
+                method: 'GET',
+                signal: AbortSignal.timeout(6000)
+            });
+            if (!resp2.ok) throw new Error('ipinfo response not ok');
+            const data2 = await resp2.json();
+            if (data2 && data2.loc) {
+                const [lat, lon] = data2.loc.split(',');
+                const fLat = parseFloat(lat).toFixed(4);
+                const fLon = parseFloat(lon).toFixed(4);
+                const address = data2.city ? {
+                    province: data2.region || '',
+                    city: data2.city || '',
+                    address: ''
+                } : null;
+                this._applyLocationResult(fLat, fLon, address);
+                console.log('IP定位成功(ipinfo.io):', data2.city);
+                return;
+            }
+        } catch (err2) {
+            console.warn('ipinfo.io定位也失败:', err2.message);
+        }
+
+        // 方案3: 使用默认城市坐标（北京）作为最后兜底
+        console.warn('所有定位方案均失败，使用默认位置');
+        this._applyLocationResult('39.9042', '116.4074', {
+            province: '北京市',
+            city: '北京市',
+            address: ''
+        });
     }
 
     async reverseGeocode(lat, lon) {

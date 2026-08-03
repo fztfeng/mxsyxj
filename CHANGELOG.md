@@ -180,6 +180,27 @@
 - 修复 package.json 版本号长期未同步的问题
 - 修复 index.html 中关于页面和侧边菜单显示旧版本号的问题
 
+## [1.8.0] - 2026-08-03
+
+### 修复 - 水印布局与定位核心问题
+- **Canvas水印绘制方向修复** - 所有模板从"从下往上"改为"从上往下"绘制，确保时间在顶部、天气在中部、位置在底部
+- **定位无法获取修复** - 修复自动定位成功后 `useCustomLocation` 未启用导致位置信息不显示的关键bug
+- **定位三级容错增强** - 新增 `_applyLocationResult` 统一方法，自动启用位置开关并同步UI
+- **IP定位兜底保障** - 所有IP定位方案失败时使用默认城市坐标作为最后兜底，确保水印始终有位置信息
+- **浏览器不支持GPS** - 当浏览器不支持 Geolocation API 时直接走IP定位，不再静默放弃
+
+### 优化
+- **经典模板Canvas布局** - 时间|日期在顶部，星期天气在中部，地点（缩小字体）在底部
+- **简约/现代/专业模板** - 统一改为从上到下绘制，布局更直观
+- **右对齐日期处理** - 修复右对齐时日期与时间的位置关系
+- **代码复用** - 定位成功逻辑统一到 `_applyLocationResult`，减少重复代码
+
+### 技术细节
+- watermark.js: 4个Canvas绘制方法全部重构为 textBaseline='top' + y递增
+- app.js: 新增 `_applyLocationResult` 方法，统一处理GPS/高精度/IP定位结果
+- app.js: `autoGetLocation`、`_retryHighAccuracyLocation`、`_fallbackIPLocation` 全部改用统一方法
+- 版本号: manifest.json、package.json、index.html、build-apk.yml 统一为 v1.8.0
+
 ## [Unreleased]
 
 ### 计划中

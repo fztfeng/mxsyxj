@@ -339,7 +339,7 @@ class WatermarkManager {
         if (timeEl) timeEl.style.fontSize = `${baseTimeSize * scale}px`;
         if (dateEl) dateEl.style.fontSize = `${15 * scale}px`;
         if (weatherEl) weatherEl.style.fontSize = `${13 * scale}px`;
-        if (locEl) locEl.style.fontSize = `${13 * scale}px`;
+        if (locEl) locEl.style.fontSize = `${11 * scale}px`;
         if (textEl) textEl.style.fontSize = `${12 * scale}px`;
         if (dividerEl) dividerEl.style.height = `${28 * scale}px`;
     }
@@ -490,22 +490,23 @@ class WatermarkManager {
 
     /**
      * Canvas绘制 - 经典模板（匹配截图）
+     * 从上到下绘制：时间|日期 → 星期 天气 → 地点
      */
     drawDefaultOnCanvas(ctx, w, h, timeData, location, weather, scale) {
         const padding = 30 * (w / 1080);
         const timeFontSize = 50 * scale * (w / 1080);
         const dateFontSize = 20 * scale * (w / 1080);
         const weatherFontSize = 17 * scale * (w / 1080);
-        const locFontSize = 17 * scale * (w / 1080);
+        const locFontSize = 13 * scale * (w / 1080); // 缩小位置信息字体
         
         const pos = this.getCanvasPosition(w, h, padding);
         let x = pos.x;
         let y = pos.y;
 
         ctx.textAlign = pos.align;
-        ctx.textBaseline = 'bottom';
+        ctx.textBaseline = 'top';
 
-        // 第一行：时间 | 日期
+        // === 第一行（顶部）：时间 | 日期 ===
         ctx.font = `bold ${timeFontSize}px -apple-system, sans-serif`;
         ctx.fillStyle = '#ffffff';
         ctx.shadowColor = 'rgba(0,0,0,0.7)';
@@ -513,43 +514,57 @@ class WatermarkManager {
         ctx.shadowOffsetY = 2;
         ctx.fillText(timeData.time, x, y);
         
+        // 竖线分隔符 + 日期（仅在左对齐时横向排列）
         const timeWidth = ctx.measureText(timeData.time).width;
-        const dividerX = x + timeWidth + 12 * (w / 1080);
-        const dividerHeight = 38 * scale * (w / 1080);
-        
-        // 竖线分隔符
-        ctx.shadowColor = 'transparent';
-        ctx.fillStyle = '#FFD700';
-        ctx.fillRect(dividerX, y - dividerHeight + 4 * (w / 1080), 2 * (w / 1080), dividerHeight);
-        
-        // 日期
-        ctx.shadowColor = 'rgba(0,0,0,0.7)';
-        ctx.shadowBlur = 4;
-        ctx.font = `${dateFontSize}px -apple-system, sans-serif`;
-        ctx.fillStyle = '#ffffff';
-        const dateX = dividerX + 12 * (w / 1080);
         if (pos.align === 'right') {
-            ctx.textAlign = 'right';
-            ctx.fillText(timeData.date, x, y);
+            // 右对齐：日期在时间左侧
+            const dateWidth = ctx.measureText(timeData.date).width;
+            const dividerX = x - timeWidth - 12 * (w / 1080) - 2 * (w / 1080);
+            const dateX = dividerX - 12 * (w / 1080) - dateWidth;
+            const dividerHeight = 38 * scale * (w / 1080);
+            
+            ctx.shadowColor = 'transparent';
+            ctx.fillStyle = '#FFD700';
+            ctx.fillRect(dividerX, y + 4 * (w / 1080), 2 * (w / 1080), dividerHeight);
+            
+            ctx.shadowColor = 'rgba(0,0,0,0.7)';
+            ctx.shadowBlur = 4;
+            ctx.font = `${dateFontSize}px -apple-system, sans-serif`;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(timeData.date, dateX, y + (timeFontSize - dateFontSize) / 2);
         } else {
-            ctx.fillText(timeData.date, dateX, y);
+            // 左对齐/居中：日期在时间右侧
+            const dividerX = x + timeWidth + 12 * (w / 1080);
+            const dividerHeight = 38 * scale * (w / 1080);
+            const dateX = dividerX + 12 * (w / 1080);
+            
+            ctx.shadowColor = 'transparent';
+            ctx.fillStyle = '#FFD700';
+            ctx.fillRect(dividerX, y + 4 * (w / 1080), 2 * (w / 1080), dividerHeight);
+            
+            ctx.shadowColor = 'rgba(0,0,0,0.7)';
+            ctx.shadowBlur = 4;
+            ctx.font = `${dateFontSize}px -apple-system, sans-serif`;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(timeData.date, dateX, y + (timeFontSize - dateFontSize) / 2);
         }
-        y -= timeFontSize + 8 * (w / 1080);
+        y += timeFontSize + 8 * (w / 1080);
 
-        // 第二行：星期 天气
+        // === 第二行：星期 天气 ===
         ctx.font = `${weatherFontSize}px -apple-system, sans-serif`;
         ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.shadowOffsetY = 1;
         const weatherText = weather ? `${timeData.weekDay} ${weather}` : timeData.weekDay;
         ctx.fillText(weatherText, x, y);
-        y -= weatherFontSize + 6 * (w / 1080);
+        y += weatherFontSize + 6 * (w / 1080);
 
-        // 第三行：地点
+        // === 第三行（底部）：地点（缩小字体，放在天气下方）===
         const locText = location.full || `${location.province}${location.city}${location.address}`;
         if (locText) {
             ctx.font = `${locFontSize}px -apple-system, sans-serif`;
-            ctx.fillStyle = 'rgba(255,255,255,0.85)';
+            ctx.fillStyle = 'rgba(255,255,255,0.75)';
             ctx.fillText(`📍 ${locText}`, x, y);
-            y -= locFontSize + 6 * (w / 1080);
+            y += locFontSize + 4 * (w / 1080);
         }
 
         // 自定义文字
@@ -569,7 +584,7 @@ class WatermarkManager {
         let y = pos.y;
 
         ctx.textAlign = pos.align;
-        ctx.textBaseline = 'bottom';
+        ctx.textBaseline = 'top';
 
         ctx.font = `300 ${baseFontSize}px -apple-system, sans-serif`;
         ctx.fillStyle = '#ffffff';
@@ -577,12 +592,13 @@ class WatermarkManager {
         ctx.shadowBlur = 8;
         ctx.shadowOffsetY = 2;
         ctx.fillText(timeData.time, x, y);
-        y -= baseFontSize + 4 * (w / 1080);
+        y += baseFontSize + 4 * (w / 1080);
 
         ctx.font = `${18 * scale * (w / 1080)}px -apple-system, sans-serif`;
         ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.shadowOffsetY = 1;
         ctx.fillText(timeData.date, x, y);
-        y -= 22 * scale * (w / 1080);
+        y += 22 * scale * (w / 1080);
 
         if (this.config.useCustomText && this.config.customText) {
             ctx.font = `${16 * scale * (w / 1080)}px -apple-system, sans-serif`;
@@ -600,7 +616,7 @@ class WatermarkManager {
         let y = pos.y;
 
         ctx.textAlign = pos.align;
-        ctx.textBaseline = 'bottom';
+        ctx.textBaseline = 'top';
 
         // 徽章
         const badgeText = '今日';
@@ -610,18 +626,18 @@ class WatermarkManager {
         
         if (pos.align === 'right') {
             ctx.fillStyle = '#00d4ff';
-            ctx.fillRect(x - badgeWidth, y - badgeHeight, badgeWidth, badgeHeight);
+            ctx.fillRect(x - badgeWidth, y, badgeWidth, badgeHeight);
             ctx.fillStyle = '#000';
             ctx.shadowColor = 'transparent';
-            ctx.fillText(badgeText, x - 8 * (w / 1080), y - 4);
+            ctx.fillText(badgeText, x - 8 * (w / 1080), y + 4);
         } else {
             ctx.fillStyle = '#00d4ff';
-            ctx.fillRect(x, y - badgeHeight, badgeWidth, badgeHeight);
+            ctx.fillRect(x, y, badgeWidth, badgeHeight);
             ctx.fillStyle = '#000';
             ctx.shadowColor = 'transparent';
-            ctx.fillText(badgeText, x + 8 * (w / 1080), y - 4);
+            ctx.fillText(badgeText, x + 8 * (w / 1080), y + 4);
         }
-        y -= badgeHeight + 8 * (w / 1080);
+        y += badgeHeight + 8 * (w / 1080);
 
         ctx.font = `800 ${baseFontSize}px -apple-system, sans-serif`;
         ctx.fillStyle = '#ffffff';
@@ -629,26 +645,27 @@ class WatermarkManager {
         ctx.shadowBlur = 8;
         ctx.shadowOffsetY = 2;
         ctx.fillText(timeData.time, x, y);
-        y -= baseFontSize + 4 * (w / 1080);
+        y += baseFontSize + 4 * (w / 1080);
 
         ctx.font = `${16 * scale * (w / 1080)}px -apple-system, sans-serif`;
         ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.shadowOffsetY = 1;
         ctx.fillText(timeData.date, x, y);
-        y -= 20 * scale * (w / 1080);
+        y += 20 * scale * (w / 1080);
 
         if (weather) {
             ctx.font = `${16 * scale * (w / 1080)}px -apple-system, sans-serif`;
             ctx.fillStyle = 'rgba(255,255,255,0.7)';
             ctx.fillText(`${timeData.weekDay} ${weather}`, x, y);
-            y -= 20 * scale * (w / 1080);
+            y += 20 * scale * (w / 1080);
         }
 
         const locText = location.full || `${location.province}${location.city}`;
         if (locText) {
-            ctx.font = `${17 * scale * (w / 1080)}px -apple-system, sans-serif`;
-            ctx.fillStyle = '#00d4ff';
+            ctx.font = `${13 * scale * (w / 1080)}px -apple-system, sans-serif`;
+            ctx.fillStyle = 'rgba(255,255,255,0.75)';
             ctx.fillText(locText, x, y);
-            y -= 22 * scale * (w / 1080);
+            y += 22 * scale * (w / 1080);
         }
 
         if (this.config.useCustomText && this.config.customText) {
@@ -664,34 +681,34 @@ class WatermarkManager {
         let startY = h - padding - 100 * (w / 1080);
 
         ctx.fillStyle = '#00d4ff';
-        ctx.fillRect(lineX, startY - 80 * (w / 1080), 3 * (w / 1080), 90 * (w / 1080));
+        ctx.fillRect(lineX, startY, 3 * (w / 1080), 90 * (w / 1080));
 
         let x = lineX + 15 * (w / 1080);
         let y = startY;
 
         ctx.textAlign = 'left';
-        ctx.textBaseline = 'bottom';
+        ctx.textBaseline = 'top';
 
         ctx.font = `600 ${18 * scale * (w / 1080)}px -apple-system, sans-serif`;
         ctx.fillStyle = '#ffffff';
         ctx.shadowColor = 'rgba(0,0,0,0.7)';
         ctx.shadowBlur = 4;
         ctx.fillText(timeData.fullDate, x, y);
-        y -= 26 * scale * (w / 1080);
+        y += 26 * scale * (w / 1080);
 
         if (weather) {
             ctx.font = `${17 * scale * (w / 1080)}px -apple-system, sans-serif`;
             ctx.fillStyle = 'rgba(255,255,255,0.8)';
             ctx.fillText(`${timeData.weekDay} ${weather}`, x, y);
-            y -= 24 * scale * (w / 1080);
+            y += 24 * scale * (w / 1080);
         }
 
         const locText = location.full || `${location.province}${location.city}${location.address}`;
         if (locText) {
-            ctx.font = `${17 * scale * (w / 1080)}px -apple-system, sans-serif`;
-            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.font = `${13 * scale * (w / 1080)}px -apple-system, sans-serif`;
+            ctx.fillStyle = 'rgba(255,255,255,0.75)';
             ctx.fillText(`📍 ${locText}`, x, y);
-            y -= 24 * scale * (w / 1080);
+            y += 20 * scale * (w / 1080);
         }
 
         const noteText = this.config.useCustomText && this.config.customText 

@@ -61,9 +61,9 @@ jobs:
         run: |
           BUILD_GRADLE=android/app/build.gradle
           if [ -f "$BUILD_GRADLE" ]; then
-            sed -i 's/versionCode [0-9]*/versionCode 6/' "$BUILD_GRADLE"
-            sed -i 's/versionName "[0-9.]*"/versionName "1.6.0"/' "$BUILD_GRADLE"
-            echo "Version set to 1.6.0 (code: 6)"
+            sed -i 's/versionCode [0-9]*/versionCode 8/' "$BUILD_GRADLE"
+            sed -i 's/versionName "[0-9.]*"/versionName "1.8.0"/' "$BUILD_GRADLE"
+            echo "Version set to 1.8.0 (code: 8)"
           fi
 
       - name: Update Android manifest permissions

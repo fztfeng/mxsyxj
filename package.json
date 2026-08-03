@@ -1,6 +1,6 @@
 {
   "name": "moxi-watermark-camera",
-  "version": "1.6.0",
+  "version": "1.8.0",
   "description": "今日水印相机 - 支持实时定位修改、时间修改和防伪验真的水印相机应用",
   "main": "index.html",
   "scripts": {
