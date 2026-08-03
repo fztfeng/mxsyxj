@@ -39,13 +39,13 @@ class WatermarkManager {
     }
 
     /**
-     * 生成12位防伪码（大写字母+数字混合）
-     * 格式: UC + 10位随机字符 = 12位
+     * 生成13位防伪码（大写字母+数字混合）
+     * 格式: 13位随机字符
      */
     generateAntiFakeCode() {
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
         let code = '';
-        for (let i = 0; i < 12; i++) {
+        for (let i = 0; i < 13; i++) {
             code += chars.charAt(Math.floor(Math.random() * chars.length));
         }
         this.currentAntiFakeCode = code;
@@ -61,6 +61,7 @@ class WatermarkManager {
 
     /**
      * 生成品牌防伪水印HTML（右下角）
+     * 匹配参考图：今日水印 → 相机 [真实可验](蓝色徽章) → 防伪 XXXXXXXXXXXXX
      */
     generateBrandHTML() {
         if (!this.config.brandEnabled) return '';
@@ -68,12 +69,11 @@ class WatermarkManager {
         let html = '';
         // 品牌名称
         html += `<div class="brand-name">今日水印</div>`;
-        // 副标题
-        html += `<div class="brand-subtitle">相机 · 真实可验</div>`;
+        // 副标题：相机 + 蓝色徽章"真实可验"
+        html += `<div class="brand-subtitle">相机 <span class="brand-verify-badge">真实可验</span></div>`;
         
         // 防伪码
         if (this.config.antiFakeEnabled) {
-            html += `<div class="brand-verify">${this.shieldIcon}<span>防伪验证</span></div>`;
             html += `<div class="brand-antifake"><span class="antifake-label">防伪</span> ${this.currentAntiFakeCode}</div>`;
         }
         
@@ -382,6 +382,7 @@ class WatermarkManager {
 
     /**
      * Canvas绘制 - 品牌防伪水印（右下角）
+     * 匹配参考图：今日水印 → 相机 [真实可验](蓝色徽章) → 防伪 XXXXXXXXXXXXX
      */
     drawBrandOnCanvas(ctx, w, h, scale) {
         const padding = 30 * (w / 1080);
@@ -399,26 +400,62 @@ class WatermarkManager {
             ctx.shadowColor = 'rgba(0,0,0,0.7)';
             ctx.shadowBlur = 4;
             ctx.fillText(`防伪 ${this.currentAntiFakeCode}`, rightX, y);
-            y -= antifakeFontSize + 4 * (w / 1080);
-
-            // "防伪验证" 带盾牌图标
-            const verifyFontSize = 12 * scale * (w / 1080);
-            ctx.font = `${verifyFontSize}px -apple-system, sans-serif`;
-            ctx.fillStyle = 'rgba(255,255,255,0.75)';
-            ctx.fillText(`✓ 防伪验证`, rightX, y);
-            y -= verifyFontSize + 6 * (w / 1080);
+            y -= antifakeFontSize + 6 * (w / 1080);
         }
 
-        // 副标题
+        // 副标题：相机 [真实可验] 蓝色徽章
         const subFontSize = 14 * scale * (w / 1080);
+        const ratio = w / 1080;
+        const cameraText = '相机';
+        const verifyText = '真实可验';
+        const gap = 6 * ratio;
+        const badgePadX = 8 * ratio;
+        const badgePadY = 3 * ratio;
+        const badgeRadius = 4 * ratio;
+
+        // 测量文字宽度
         ctx.font = `${subFontSize}px -apple-system, sans-serif`;
-        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        const cameraWidth = ctx.measureText(cameraText).width;
+        ctx.font = `bold ${subFontSize}px -apple-system, sans-serif`;
+        const verifyWidth = ctx.measureText(verifyText).width;
+        const badgeWidth = verifyWidth + badgePadX * 2;
+        const badgeHeight = subFontSize + badgePadY * 2;
+
+        // 总宽度 = 相机 + gap + 徽章
+        const totalWidth = cameraWidth + gap + badgeWidth;
+        const startX = rightX - totalWidth; // 左起位置
+
+        // 绘制"相机"文字
         ctx.shadowColor = 'rgba(0,0,0,0.7)';
         ctx.shadowBlur = 4;
-        ctx.fillText(`相机 · 真实可验`, rightX, y);
-        y -= subFontSize + 4 * (w / 1080);
+        ctx.font = `${subFontSize}px -apple-system, sans-serif`;
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'bottom';
+        const cameraY = y - badgePadY; // 对齐徽章中心
+        ctx.fillText(cameraText, startX, cameraY);
+
+        // 绘制蓝色徽章背景（圆角矩形）
+        const badgeX = startX + cameraWidth + gap;
+        const badgeY = y - badgeHeight;
+        ctx.shadowColor = 'transparent';
+        ctx.fillStyle = '#4A90D9';
+        this._drawRoundRect(ctx, badgeX, badgeY, badgeWidth, badgeHeight, badgeRadius);
+        ctx.fill();
+
+        // 绘制"真实可验"文字（白色加粗）
+        ctx.shadowColor = 'transparent';
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${subFontSize}px -apple-system, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(verifyText, badgeX + badgeWidth / 2, badgeY + badgeHeight / 2);
+
+        y -= badgeHeight + 6 * (w / 1080);
 
         // 品牌名称
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'bottom';
         const brandFontSize = 20 * scale * (w / 1080);
         ctx.font = `bold ${brandFontSize}px -apple-system, sans-serif`;
         ctx.fillStyle = '#ffffff';
@@ -426,6 +463,24 @@ class WatermarkManager {
         ctx.shadowBlur = 6;
         ctx.shadowOffsetY = 1;
         ctx.fillText(`今日水印`, rightX, y);
+        ctx.shadowOffsetY = 0;
+    }
+
+    /**
+     * 绘制圆角矩形
+     */
+    _drawRoundRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
     }
 
     getFontScale() {

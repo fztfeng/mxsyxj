@@ -321,7 +321,7 @@
                         <div class="antifake-toggle-row">
                             <div class="antifake-toggle-info">
                                 <span class="antifake-toggle-title">防伪验证码</span>
-                                <span class="antifake-toggle-desc">每张照片生成唯一12位防伪码，可通过"照片验真"验证</span>
+                                <span class="antifake-toggle-desc">每张照片生成唯一13位防伪码，可通过"照片验真"验证</span>
                             </div>
                             <label class="switch">
                                 <input type="checkbox" id="toggle-antifake" checked>
@@ -467,11 +467,11 @@
                                 <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
                             </svg>
                         </div>
-                        <p>输入照片上的12位防伪码进行验证</p>
-                        <p class="verify-hint">防伪码位于照片右下角，格式如：ABCD1234EFGH</p>
+                        <p>输入照片上的13位防伪码进行验证</p>
+                        <p class="verify-hint">防伪码位于照片右下角，格式如：ABCD1234EFGH5</p>
                     </div>
                     <div class="verify-input-area">
-                        <input type="text" id="verify-code-input" placeholder="请输入12位防伪码" maxlength="12" autocomplete="off">
+                        <input type="text" id="verify-code-input" placeholder="请输入13位防伪码" maxlength="13" autocomplete="off">
                         <button id="btn-verify-code" class="verify-btn-action">立即验证</button>
                     </div>
                     <div id="verify-result" class="verify-result"></div>

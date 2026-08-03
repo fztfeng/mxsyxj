@@ -922,7 +922,7 @@ class App {
         }
 
         if (code.length < 12) {
-            this.showVerifyResult('error', '防伪码格式错误', '防伪码应为12位字符');
+            this.showVerifyResult('error', '防伪码格式错误', '防伪码应为13位字符');
             return;
         }
 
