@@ -1,0 +1,111 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    name: Build Mobile APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          build-tools-version: '34.0.0'
+          ndk-version: '26.1.10909125'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Add Android platform
+        run: npx cap add android || true
+
+      - name: Copy web assets to Android
+        run: npx cap copy android
+
+      - name: Update Android manifest permissions
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          if [ -f "$MANIFEST" ]; then
+            # Ensure camera permission
+            if ! grep -q "android.permission.CAMERA" "$MANIFEST"; then
+              sed -i '/<\/manifest>/i \
+                <uses-permission android:name="android.permission.CAMERA" />\
+                <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\
+                <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\
+                <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\
+                <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\
+                <uses-permission android:name="android.permission.INTERNET" />\
+                <uses-feature android:name="android.hardware.camera" android:required="true" />\
+                <uses-feature android:name="android.hardware.camera.autofocus" />' "$MANIFEST"
+            fi
+          fi
+
+      - name: Configure Gradle for APK signing
+        run: |
+          if [ -f android/app/build.gradle ]; then
+            # Ensure we build both debug and release
+            cat >> android/app/build.gradle << 'GRADLE_EOF'
+
+            android {
+                buildTypes {
+                    release {
+                        minifyEnabled false
+                        proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                        signingConfig signingConfigs.debug
+                    }
+                }
+            }
+            GRADLE_EOF
+          fi
+
+      - name: Build Debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon -x lintVitalAnalyzeRelease
+
+      - name: Build Release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon -x lintVitalAnalyzeRelease || true
+
+      - name: List built APK files
+        run: find android -name "*.apk" -type f
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: moxi-watermark-camera-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: moxi-watermark-camera-release-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: warn
+          retention-days: 30

@@ -1,0 +1,23 @@
+{
+  "appId": "com.moxi.watermarkcamera",
+  "appName": "今日水印相机",
+  "webDir": ".",
+  "server": {
+    "androidScheme": "https",
+    "hostname": "localhost",
+    "port": 8080
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "Camera": {
+      "permissions": ["camera", "photos"]
+    },
+    "Geolocation": {
+      "permissions": ["location"]
+    }
+  }
+}
