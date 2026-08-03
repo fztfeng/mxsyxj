@@ -1,7 +1,7 @@
 {
   "appId": "com.moxi.watermarkcamera",
   "appName": "今日水印相机",
-  "webDir": ".",
+  "webDir": "www",
   "server": {
     "androidScheme": "https",
     "hostname": "localhost",
