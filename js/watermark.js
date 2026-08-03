@@ -14,6 +14,7 @@ class WatermarkManager {
             customLocation: null,
             customText: '',
             weather: { enabled: true, text: '晴', temp: '27°C' },
+            weatherMode: 'auto',
             useCustomTime: false,
             useCustomLocation: false,
             useCustomText: false,
@@ -687,6 +688,36 @@ class WatermarkManager {
 
     setWeather(enabled, text, temp) {
         this.config.weather = { enabled, text, temp };
+    }
+
+    /**
+     * 设置天气模式
+     * @param {string} mode - 'auto' 或 'manual'
+     */
+    setWeatherMode(mode) {
+        this.config.weatherMode = mode;
+    }
+
+    /**
+     * 从WeatherManager自动获取的天气数据更新水印天气
+     * @param {Object} weatherData - WeatherManager返回的天气对象
+     */
+    setWeatherFromAuto(weatherData) {
+        if (!weatherData) return;
+        this.config.weather = {
+            enabled: true,
+            text: weatherData.text || '晴',
+            temp: weatherData.temp || '27°C'
+        };
+        // 存储完整天气数据供详情展示
+        this.weatherDetail = weatherData;
+    }
+
+    /**
+     * 获取天气详情数据
+     */
+    getWeatherDetail() {
+        return this.weatherDetail || null;
     }
 
     syncCurrentTime() {

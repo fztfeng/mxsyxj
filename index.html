@@ -254,13 +254,35 @@
                         </label>
                     </label>
                     <div id="weather-settings" class="sub-settings">
-                        <div class="input-group">
-                            <label>天气</label>
-                            <input type="text" id="custom-weather" placeholder="如：晴" value="晴">
+                        <!-- 天气模式切换 -->
+                        <div class="weather-mode-tabs">
+                            <button class="weather-mode-tab active" data-mode="auto">自动获取</button>
+                            <button class="weather-mode-tab" data-mode="manual">手动输入</button>
                         </div>
-                        <div class="input-group">
-                            <label>温度</label>
-                            <input type="text" id="custom-temp" placeholder="如：27°C" value="27°C">
+                        <!-- 自动获取模式 -->
+                        <div id="weather-auto-panel" class="weather-auto-panel">
+                            <div class="weather-auto-info">
+                                <span id="weather-auto-icon" class="weather-auto-icon">☀️</span>
+                                <div class="weather-auto-text">
+                                    <span id="weather-auto-desc" class="weather-auto-desc">等待获取天气...</span>
+                                    <span id="weather-auto-detail" class="weather-auto-detail">点击下方按钮或定位后自动获取</span>
+                                </div>
+                            </div>
+                            <button id="btn-refresh-weather" class="action-btn weather-refresh-btn">
+                                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                                刷新天气
+                            </button>
+                        </div>
+                        <!-- 手动输入模式 -->
+                        <div id="weather-manual-panel" class="weather-manual-panel hidden">
+                            <div class="input-group">
+                                <label>天气</label>
+                                <input type="text" id="custom-weather" placeholder="如：晴" value="晴">
+                            </div>
+                            <div class="input-group">
+                                <label>温度</label>
+                                <input type="text" id="custom-temp" placeholder="如：27°C" value="27°C">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -751,6 +773,7 @@
         <div id="toast" class="toast hidden"></div>
     </div>
 
+    <script src="js/weather.js"></script>
     <script src="js/watermark.js"></script>
     <script src="js/camera.js"></script>
     <script src="js/app.js"></script>

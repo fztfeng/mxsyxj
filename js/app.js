@@ -7,6 +7,7 @@ class App {
     constructor() {
         this.camera = new CameraManager();
         this.watermark = new WatermarkManager();
+        this.weather = new WeatherManager();
         this.watermarkOverlay = null;
         this.brandOverlay = null;
         this.currentPhoto = null;
@@ -45,6 +46,11 @@ class App {
         }
 
         this.startTimeUpdateTimer();
+
+        // 启动时自动获取天气（如果是自动模式）
+        if (this.watermark.config.weatherMode !== 'manual') {
+            setTimeout(() => this.refreshAutoWeather(), 2000);
+        }
     }
 
     async showSplash() {
@@ -309,6 +315,21 @@ class App {
             this.updateWeather();
         });
 
+        // 天气模式切换
+        document.querySelectorAll('.weather-mode-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.weather-mode-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                const mode = tab.dataset.mode;
+                this.switchWeatherMode(mode);
+            });
+        });
+
+        // 刷新天气按钮
+        document.getElementById('btn-refresh-weather').addEventListener('click', () => {
+            this.refreshAutoWeather();
+        });
+
         document.getElementById('custom-weather').addEventListener('input', () => {
             this.updateWeather();
         });
@@ -503,10 +524,204 @@ class App {
 
     updateWeather() {
         const enabled = document.getElementById('toggle-custom-weather').checked;
-        const text = document.getElementById('custom-weather').value || '晴';
-        const temp = document.getElementById('custom-temp').value || '27°C';
-        this.watermark.setWeather(enabled, text, temp);
+        const mode = this.watermark.config.weatherMode || 'auto';
+
+        if (mode === 'manual') {
+            const text = document.getElementById('custom-weather').value || '晴';
+            const temp = document.getElementById('custom-temp').value || '27°C';
+            this.watermark.setWeather(enabled, text, temp);
+        } else {
+            // 自动模式：使用已缓存的天气数据
+            if (enabled && this.weather.currentWeather) {
+                this.watermark.setWeatherFromAuto(this.weather.currentWeather);
+                this.watermark.config.weather.enabled = true;
+            } else {
+                this.watermark.config.weather.enabled = enabled;
+            }
+        }
         this.updateWatermarkPreview();
+    }
+
+    /**
+     * 切换天气模式（自动/手动）
+     */
+    switchWeatherMode(mode) {
+        this.watermark.setWeatherMode(mode);
+
+        if (mode === 'auto') {
+            document.getElementById('weather-auto-panel').classList.remove('hidden');
+            document.getElementById('weather-manual-panel').classList.add('hidden');
+            // 如果已有天气数据，直接更新
+            if (this.weather.currentWeather) {
+                this.updateAutoWeatherDisplay();
+                this.updateWeather();
+            } else {
+                // 尝试获取天气
+                this.refreshAutoWeather();
+            }
+        } else {
+            document.getElementById('weather-auto-panel').classList.add('hidden');
+            document.getElementById('weather-manual-panel').classList.remove('hidden');
+            this.updateWeather();
+        }
+        this.saveSettings();
+    }
+
+    /**
+     * 刷新自动天气获取
+     */
+    async refreshAutoWeather() {
+        const descEl = document.getElementById('weather-auto-desc');
+        const detailEl = document.getElementById('weather-auto-detail');
+        const iconEl = document.getElementById('weather-auto-icon');
+        const refreshBtn = document.getElementById('btn-refresh-weather');
+
+        descEl.textContent = '正在获取天气...';
+        detailEl.textContent = '请稍候';
+        refreshBtn.disabled = true;
+
+        // 尝试从已保存的坐标获取
+        let lat, lon;
+        const coordsEl = document.getElementById('custom-coords');
+        if (coordsEl && coordsEl.value) {
+            const parts = coordsEl.value.split(',');
+            lat = parseFloat(parts[0]);
+            lon = parseFloat(parts[1]);
+        }
+
+        // 如果没有坐标，尝试通过定位获取
+        if (!lat || !lon) {
+            if (navigator.geolocation) {
+                descEl.textContent = '正在获取定位...';
+                navigator.geolocation.getCurrentPosition(
+                    async (position) => {
+                        lat = position.coords.latitude;
+                        lon = position.coords.longitude;
+                        await this._fetchAndDisplayWeather(lat, lon, descEl, detailEl, iconEl, refreshBtn);
+                    },
+                    async (err) => {
+                        // 定位失败，尝试用wttr.in基于IP获取
+                        descEl.textContent = '定位失败，尝试基于IP获取...';
+                        await this._fetchWeatherByIP(descEl, detailEl, iconEl, refreshBtn);
+                    },
+                    { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
+                );
+            } else {
+                await this._fetchWeatherByIP(descEl, detailEl, iconEl, refreshBtn);
+            }
+        } else {
+            await this._fetchAndDisplayWeather(lat, lon, descEl, detailEl, iconEl, refreshBtn);
+        }
+    }
+
+    /**
+     * 获取并显示天气
+     */
+    async _fetchAndDisplayWeather(lat, lon, descEl, detailEl, iconEl, refreshBtn) {
+        try {
+            const weather = await this.weather.getWeatherByCoords(lat, lon);
+            if (weather) {
+                this.watermark.setWeatherFromAuto(weather);
+                this.updateAutoWeatherDisplay();
+                this.updateWatermarkPreview();
+                this.showToast(`天气已更新: ${weather.text} ${weather.temp}`);
+            } else {
+                descEl.textContent = '获取天气失败';
+                detailEl.textContent = '请检查网络后重试';
+            }
+        } catch (err) {
+            console.warn('天气获取失败:', err);
+            descEl.textContent = '获取天气失败';
+            detailEl.textContent = '请检查网络后重试';
+        } finally {
+            refreshBtn.disabled = false;
+        }
+    }
+
+    /**
+     * 基于IP获取天气（定位失败时的备用方案）
+     */
+    async _fetchWeatherByIP(descEl, detailEl, iconEl, refreshBtn) {
+        try {
+            // 使用wttr.in自动检测位置
+            const url = 'https://wttr.in/?format=j1';
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                signal: AbortSignal.timeout(8000)
+            });
+            if (!response.ok) throw new Error('IP天气获取失败');
+            const data = await response.json();
+            if (data && data.current_condition && data.current_condition[0]) {
+                const cur = data.current_condition[0];
+                const temp = parseInt(cur.temp_C) || 27;
+                const weatherDesc = (cur.weatherDesc && cur.weatherDesc[0] && cur.weatherDesc[0].value || '').trim();
+                const text = this.weather._translateWttrDesc(weatherDesc, parseInt(cur.weatherCode));
+                const weather = {
+                    text: text,
+                    icon: this.weather._getIconByDesc(text),
+                    category: this.weather._getCategoryByDesc(text),
+                    temp: `${temp}°C`,
+                    tempValue: temp,
+                    humidity: parseInt(cur.humidity) || null,
+                    apparentTemp: parseInt(cur.FeelsLikeC) || null,
+                    isDay: 1,
+                    windSpeed: parseInt(cur.windspeedKmph) || null,
+                    source: 'wttr.in(ip)',
+                    updateTime: new Date().toISOString()
+                };
+                this.weather.currentWeather = weather;
+                this.weather.lastFetchTime = Date.now();
+                this.watermark.setWeatherFromAuto(weather);
+                this.updateAutoWeatherDisplay();
+                this.updateWatermarkPreview();
+                this.showToast(`天气已更新: ${weather.text} ${weather.temp}`);
+            }
+        } catch (err) {
+            console.warn('IP天气获取失败:', err);
+            descEl.textContent = '获取天气失败';
+            detailEl.textContent = '请检查网络或手动输入';
+        } finally {
+            refreshBtn.disabled = false;
+        }
+    }
+
+    /**
+     * 更新自动天气面板的显示
+     */
+    updateAutoWeatherDisplay() {
+        const w = this.weather.currentWeather;
+        if (!w) return;
+
+        const iconEl = document.getElementById('weather-auto-icon');
+        const descEl = document.getElementById('weather-auto-desc');
+        const detailEl = document.getElementById('weather-auto-detail');
+
+        if (iconEl) iconEl.textContent = w.icon || '🌡️';
+        if (descEl) descEl.textContent = `${w.text} ${w.temp}`;
+
+        let detail = '';
+        if (w.humidity != null) detail += `湿度${w.humidity}% `;
+        if (w.windSpeed != null) detail += `风速${w.windSpeed}km/h `;
+        if (w.apparentTemp != null) detail += `体感${w.apparentTemp}°C `;
+        detail += `| ${w.source}`;
+        if (detailEl) detailEl.textContent = detail.trim();
+    }
+
+    /**
+     * 定位成功后自动获取天气
+     */
+    async _fetchWeatherAfterLocation(lat, lon) {
+        try {
+            const weather = await this.weather.getWeatherByCoords(lat, lon);
+            if (weather) {
+                this.watermark.setWeatherFromAuto(weather);
+                this.updateAutoWeatherDisplay();
+                this.updateWatermarkPreview();
+            }
+        } catch (err) {
+            console.warn('定位后天气获取失败:', err);
+        }
     }
 
     applyZoom(zoom) {
@@ -553,6 +768,14 @@ class App {
                 this.updateWatermarkPreview();
             }
         }, 1000);
+
+        // 每10分钟自动刷新天气
+        this.weatherRefreshInterval = setInterval(() => {
+            if (this.watermark.config.weatherMode !== 'manual' && 
+                this.watermark.config.weather?.enabled !== false) {
+                this.refreshAutoWeather();
+            }
+        }, 10 * 60 * 1000);
     }
 
     capturePhoto() {
@@ -579,7 +802,8 @@ class App {
                 captureTime: captureTime,
                 location: location.full || `${location.province}${location.city}${location.address}` || '未知位置',
                 watermarkTime: timeData.fullDate || '',
-                weather: this.watermark.getWeather()
+                weather: this.watermark.getWeather(),
+                weatherDetail: this.watermark.getWeatherDetail()
             };
 
             // 恢复变焦
@@ -626,6 +850,13 @@ class App {
                 <div class="antifake-detail">
                     <span>天气信息：${meta.weather || '—'}</span>
                 </div>
+                ${meta.weatherDetail ? `
+                <div class="antifake-detail antifake-weather-detail">
+                    <span>${meta.weatherDetail.icon || ''} ${meta.weatherDetail.source === 'open-meteo' ? '实时' : '实时'}数据</span>
+                    ${meta.weatherDetail.humidity != null ? `<span>湿度${meta.weatherDetail.humidity}%</span>` : ''}
+                    ${meta.weatherDetail.windSpeed != null ? `<span>风速${meta.weatherDetail.windSpeed}km/h</span>` : ''}
+                    ${meta.weatherDetail.apparentTemp != null ? `<span>体感${meta.weatherDetail.apparentTemp}°C</span>` : ''}
+                </div>` : ''}
             `;
         }
     }
@@ -751,7 +982,8 @@ class App {
             timestamp: new Date().toISOString(),
             antiFakeCode: this.currentPhotoMeta ? this.currentPhotoMeta.antiFakeCode : '',
             location: this.currentPhotoMeta ? this.currentPhotoMeta.location : '',
-            watermarkTime: this.currentPhotoMeta ? this.currentPhotoMeta.watermarkTime : ''
+            watermarkTime: this.currentPhotoMeta ? this.currentPhotoMeta.watermarkTime : '',
+            weather: this.currentPhotoMeta ? this.currentPhotoMeta.weather : ''
         };
         this.photos.unshift(photo);
         this.savePhotosToStorage();
@@ -858,7 +1090,7 @@ class App {
                 captureTime: photo.timestamp || '',
                 location: photo.location || '',
                 watermarkTime: photo.watermarkTime || '',
-                weather: ''
+                weather: photo.weather || ''
             };
             document.getElementById('preview-image').src = photo.dataUrl;
             document.getElementById('preview-modal').classList.remove('hidden');
@@ -935,11 +1167,19 @@ class App {
                         statusEl.textContent = `定位成功: ${lat},${lon}`;
                         statusEl.className = 'location-status success';
                     }
+                    // 定位成功后自动获取天气（仅自动模式）
+                    if (this.watermark.config.weatherMode === 'auto') {
+                        this._fetchWeatherAfterLocation(parseFloat(lat), parseFloat(lon));
+                    }
                 }).catch(() => {
                     document.getElementById('custom-coords').value = `${lat},${lon}`;
                     this.updateCustomLocation();
                     statusEl.textContent = `定位成功: ${lat},${lon}`;
                     statusEl.className = 'location-status success';
+                    // 定位成功后自动获取天气
+                    if (this.watermark.config.weatherMode === 'auto') {
+                        this._fetchWeatherAfterLocation(parseFloat(lat), parseFloat(lon));
+                    }
                 });
             },
             (err) => {
@@ -1454,7 +1694,8 @@ class App {
                 captureTime: new Date().toISOString(),
                 location: '',
                 watermarkTime: '',
-                weather: ''
+                weather: self.watermark.getWeather(),
+                weatherDetail: self.watermark.getWeatherDetail()
             };
             document.getElementById('preview-image').src = dataUrl;
             document.getElementById('preview-modal').classList.remove('hidden');
@@ -1683,7 +1924,8 @@ class App {
             captureTime: new Date().toISOString(),
             location: '',
             watermarkTime: '',
-            weather: ''
+            weather: this.watermark.getWeather(),
+            weatherDetail: this.watermark.getWeatherDetail()
         };
         document.getElementById('preview-image').src = dataUrl;
         document.getElementById('preview-modal').classList.remove('hidden');
@@ -1774,6 +2016,20 @@ class App {
                     document.getElementById('custom-weather').value = settings.weather.text || '';
                     document.getElementById('custom-temp').value = settings.weather.temp || '';
                 }
+                // 恢复天气模式
+                if (settings.weatherMode) {
+                    this.watermark.setWeatherMode(settings.weatherMode);
+                    document.querySelectorAll('.weather-mode-tab').forEach(t => t.classList.remove('active'));
+                    const tab = document.querySelector(`.weather-mode-tab[data-mode="${settings.weatherMode}"]`);
+                    if (tab) tab.classList.add('active');
+                    if (settings.weatherMode === 'auto') {
+                        document.getElementById('weather-auto-panel')?.classList.remove('hidden');
+                        document.getElementById('weather-manual-panel')?.classList.add('hidden');
+                    } else {
+                        document.getElementById('weather-auto-panel')?.classList.add('hidden');
+                        document.getElementById('weather-manual-panel')?.classList.remove('hidden');
+                    }
+                }
                 // 恢复防伪设置
                 const brandToggle = document.getElementById('toggle-brand');
                 const antifakeToggle = document.getElementById('toggle-antifake');
@@ -1798,12 +2054,20 @@ window.addEventListener('beforeunload', () => {
     app.camera.destroy();
     app.saveSettings();
     if (app.watermarkUpdateInterval) clearInterval(app.watermarkUpdateInterval);
+    if (app.weatherRefreshInterval) clearInterval(app.weatherRefreshInterval);
 });
 
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
         if (app.watermarkUpdateInterval) clearInterval(app.watermarkUpdateInterval);
+        if (app.weatherRefreshInterval) clearInterval(app.weatherRefreshInterval);
     } else {
         if (app.camera.isReady()) app.startTimeUpdateTimer();
+        // 页面恢复可见时，如果天气缓存过期则刷新
+        if (app.watermark.config.weatherMode !== 'manual' &&
+            app.weather.currentWeather &&
+            (Date.now() - app.weather.lastFetchTime) > app.weather.cacheDuration) {
+            app.refreshAutoWeather();
+        }
     }
 });

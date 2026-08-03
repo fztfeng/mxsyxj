@@ -46,6 +46,17 @@
 - **验真结果** - 显示防伪码、保存时间、水印时间、拍摄位置等完整信息
 - **防伪设置** - 可在设置面板中独立开关品牌水印和防伪码功能
 
+### 天气信息系统
+- **自动获取天气** - 基于Open-Meteo API（免费无需Key），根据GPS坐标自动获取实时天气
+- **三级容错机制** - Open-Meteo → wttr.in(坐标) → wttr.in(IP定位)，确保天气获取成功率
+- **自动/手动切换** - 设置面板支持Tab切换自动获取或手动输入天气信息
+- **天气信息展示** - 自动模式显示天气图标、天气描述、温度、湿度、风速、体感温度、数据来源
+- **一键刷新** - 可手动点击刷新按钮获取最新天气数据
+- **10分钟缓存** - 天气数据缓存10分钟，定时自动刷新，减少API请求
+- **定位联动** - 获取GPS定位成功后自动获取对应位置的天气信息
+- **WMO代码映射** - 完整的WMO天气代码到中文描述+emoji图标映射（30+天气类型）
+- **天气元数据** - 拍照时保存完整天气详情（温度、湿度、风速、体感温度等）到照片元数据
+
 ### 其他功能
 - 内置相册管理（最近20张照片）
 - 照片分享（支持系统分享）
@@ -87,6 +98,7 @@ moxi-watermark-camera/
 ├── css/
 │   └── style.css       # 全局样式
 ├── js/
+│   ├── weather.js      # 天气管理模块（Open-Meteo + wttr.in）
 │   ├── watermark.js    # 水印管理模块
 │   ├── camera.js       # 相机管理模块
 │   └── app.js          # 主应用逻辑
@@ -196,6 +208,7 @@ npx http-server -p 8080
 - [x] 边拍边拼模式
 - [x] 拼图汇报模式
 - [x] 照片编辑模式
+- [x] 天气信息自动获取（Open-Meteo + wttr.in）
 - [ ] 添加水印logo/图片
 - [ ] 支持水印颜色自定义
 - [ ] 批量拍照模式
@@ -209,6 +222,8 @@ MIT License - 详见 [LICENSE](LICENSE)
 
 ## 致谢
 
+- 天气数据: [Open-Meteo](https://open-meteo.com/) (免费天气API)
+- 备用天气: [wttr.in](https://wttr.in/)
 - 逆地理编码: [OpenStreetMap Nominatim](https://nominatim.openstreetmap.org/)
 - 图标: Material Design Icons
 - 字体: 系统默认字体
