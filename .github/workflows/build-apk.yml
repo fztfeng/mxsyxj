@@ -57,6 +57,15 @@ jobs:
       - name: Sync Android project
         run: npx cap sync android
 
+      - name: Set Android version
+        run: |
+          BUILD_GRADLE=android/app/build.gradle
+          if [ -f "$BUILD_GRADLE" ]; then
+            sed -i 's/versionCode [0-9]*/versionCode 6/' "$BUILD_GRADLE"
+            sed -i 's/versionName "[0-9.]*"/versionName "1.6.0"/' "$BUILD_GRADLE"
+            echo "Version set to 1.6.0 (code: 6)"
+          fi
+
       - name: Update Android manifest permissions
         run: |
           MANIFEST=android/app/src/main/AndroidManifest.xml

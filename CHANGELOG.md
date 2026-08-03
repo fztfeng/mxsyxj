@@ -167,6 +167,19 @@
 - Canvas绘制品牌水印支持文字宽度测量+圆角矩形徽章
 - 防伪码输入框maxlength更新为13
 
+## [1.6.0] - 2026-08-03
+
+### 优化 - 版本统一与APK版本号管理
+- **版本号统一** - manifest.json、package.json、index.html、关于页面全部统一为 v1.6.0
+- **Android版本号** - GitHub Actions 工作流新增"Set Android version"步骤，自动设置 versionCode=6, versionName=1.6.0
+- **侧边菜单版本** - 更新为 v1.6.0
+- **关于页面版本** - 更新为 v1.6.0
+- **package.json版本** - 从 1.3.0 更新为 1.6.0
+
+### 修复
+- 修复 package.json 版本号长期未同步的问题
+- 修复 index.html 中关于页面和侧边菜单显示旧版本号的问题
+
 ## [Unreleased]
 
 ### 计划中
